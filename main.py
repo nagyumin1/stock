@@ -1,41 +1,95 @@
 import streamlit as st
 import yfinance as yf
-import pandas as pd
-import datetime
 
-# 1. 페이지 설정
-st.set_page_config(page_title="국내외 주요 주가 분석", layout="wide")
-st.title("📊 최근 1년 주요 기업 주가 변동 분석 웹앱")
-st.markdown("삼성전자, SK하이닉스, 구글, 마이크로소프트, 애플의 최근 1개년 주가 데이터를 분석합니다.")
+st.set_page_config(
+    page_title="주식 분석 대시보드",
+    page_icon="📈",
+    layout="wide"
+)
 
-# 2. 주식 티커 설정
-tickers = {
+st.title("📈 실시간 주식 분석 대시보드")
+
+stocks = {
     "삼성전자": "005930.KS",
     "SK하이닉스": "000660.KS",
-    "구글 (Google)": "GOOG",
-    "마이크로소프트 (MS)": "MSFT",
-    "애플 (Apple)": "AAPL"
+    "NAVER": "035420.KS",
+    "카카오": "035720.KS",
+    "애플": "AAPL",
+    "엔비디아": "NVDA",
+    "테슬라": "TSLA"
 }
 
-# 3. 데이터 수집 기간 설정 (최근 1년)
-end_date = datetime.date.today()
-start_date = end_date - datetime.timedelta(days=365)
+selected = st.selectbox(
+    "종목 선택",
+    list(stocks.keys())
+)
 
-# 4. 데이터 캐싱 및 로드 (속도 최적화)
-@st.cache_data
-def load_data(ticker_dict, start, end):
-    all_data = pd.DataFrame()
-    for name, ticker in ticker_dict.items():
-        # 주가 데이터 가져오기 (수정종가 Adj Close 기준)
-        df = yf.download(ticker, start=start, end=end)['Adj Close']
-        all_data[name] = df
-    return all_data
+ticker = stocks[selected]
 
-with st.spinner('야후 파이낸스에서 데이터를 가져오는 중입니다...'):
-    data = load_data(tickers, start_date, end_date)
+with st.spinner("데이터 불러오는 중..."):
+    stock = yf.Ticker(ticker)
 
-# 5. 레이아웃 구획 및 대시보드 구현
-tab1, tab2, tab3 = st.tabs(["📈 주가 변동 차트", "🔄 누적 수익률 비교", "📋 원본 데이터"])
+    info = stock.info
 
-with tab1:
-    st.subheader("기업
+    hist = stock.history(period="1mo")
+
+if len(hist) == 0:
+    st.error("주가 데이터를 불러올 수 없습니다.")
+    st.stop()
+
+current_price = hist["Close"].iloc[-1]
+previous_price = hist["Close"].iloc[-2]
+
+change = current_price - previous_price
+change_percent = (change / previous_price) * 100
+
+col1, col2, col3 = st.columns(3)
+
+col1.metric(
+    "현재가",
+    f"{current_price:,.2f}"
+)
+
+col2.metric(
+    "전일 대비",
+    f"{change:,.2f}",
+    f"{change_percent:.2f}%"
+)
+
+col3.metric(
+    "거래량",
+    f"{hist['Volume'].iloc[-1]:,.0f}"
+)
+
+st.subheader("📊 최근 1개월 주가")
+
+st.line_chart(hist["Close"])
+
+st.subheader("🤖 AI 스타일 분석")
+
+if change_percent > 3:
+    st.success(
+        "🚀 강한 상승세가 나타나고 있습니다. 투자자들의 매수세가 강한 상태입니다."
+    )
+
+elif change_percent > 0:
+    st.info(
+        "📈 완만한 상승세입니다. 긍정적인 흐름을 유지하고 있습니다."
+    )
+
+elif change_percent > -3:
+    st.warning(
+        "📉 소폭 하락 중입니다. 단기 변동성에 주의하세요."
+    )
+
+else:
+    st.error(
+        "⚠️ 강한 하락세가 나타나고 있습니다. 리스크 관리가 필요합니다."
+    )
+
+st.subheader("ℹ️ 기업 정보")
+
+try:
+    st.write(info.get("longBusinessSummary", "기업 정보 없음"))
+except:
+    st.write("기업 정보를 불러올 수 없습니다.")
